@@ -1,10 +1,7 @@
 package jamsesso.meshmap.examples;
 
-import jamsesso.meshmap.LocalMeshMapCluster;
 import jamsesso.meshmap.MeshMap;
 import jamsesso.meshmap.Node;
-
-import java.io.File;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Scanner;
@@ -17,11 +14,13 @@ public class InteractiveNode {
 
   public static void main(String[] args) throws Exception {
     int port = Integer.parseInt(args[0]);
-    String directory = args[1];
+//    String directory = args[1];
+
     Node self = new Node(new InetSocketAddress("127.0.0.1", port));
 
-    try (LocalMeshMapCluster cluster = new LocalMeshMapCluster(self, new File("cluster/" + directory));
-         MeshMap<String, String> map = cluster.join()) {
+//    try (LocalMeshMapCluster cluster = new LocalMeshMapCluster(self, new File("cluster/" + directory));
+    try (MemoryNode cluster = new MemoryNode( self );
+      MeshMap<String, String> map = cluster.join()) {
       boolean running = true;
 
       do {
@@ -31,7 +30,13 @@ public class InteractiveNode {
         out.println(" 3 - remove a value");
         out.println(" 4 - get map size");
         out.println(" 5 - get all keys");
-        out.println(" 6 - quit");
+        out.println(" 6 - print nodes");
+
+        out.println(" 7 - print values");
+//        out.println(" 8 - check predecessor");
+//        out.println(" 9 - stabilize");
+
+        out.println(" 0 - quit");
         out.print("Choose an option: ");
 
         int option = scanner.nextInt();
@@ -53,6 +58,19 @@ public class InteractiveNode {
           case 5:
             getKeys(map);
             break;
+          case 6:
+//            out.println( cluster.toString() );
+            cluster.getAllNodes().forEach( node -> {
+              out.println( node.getId() + " @ " + node);
+            });
+            break;
+          case 7:
+            out.println( Arrays.toString( map.values().toArray(new String[0])) );
+            break;
+          case 8:
+            break;
+          case 9:
+            break;
           default:
             running = false;
             break;
@@ -61,6 +79,7 @@ public class InteractiveNode {
       while(running);
     }
   }
+
 
   private static void addPair(MeshMap<String, String> map) {
     out.print("Key: ");
@@ -79,8 +98,7 @@ public class InteractiveNode {
 
     if (value == null) {
       out.println("(not found)");
-    }
-    else {
+    } else {
       out.println(value);
     }
   }

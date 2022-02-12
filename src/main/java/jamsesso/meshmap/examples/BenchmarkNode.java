@@ -11,12 +11,12 @@ import java.util.UUID;
 import static java.lang.System.out;
 
 public class BenchmarkNode {
-  private static final int COUNT = 100_000;
+  private static final int COUNT = 500;
 
   public static void main(String[] args) throws Exception {
     // Get input from arguments.
     int port = Integer.parseInt(args[0]);
-    String directory = args[1];
+//    String directory = args[1];
 
     // Generate data
     String[] keys = new String[COUNT];
@@ -30,7 +30,8 @@ public class BenchmarkNode {
     // Set up cluster and wait. Enter key kills the server.
     Node self = new Node(new InetSocketAddress("127.0.0.1", port));
 
-    try (LocalMeshMapCluster cluster = new LocalMeshMapCluster(self, new File("cluster/" + directory));
+//    try (LocalMeshMapCluster cluster = new LocalMeshMapCluster(self, new File("cluster/" + directory));
+    try (MemoryNode cluster = new MemoryNode( self );
          MeshMap<String, String> map = cluster.join()) {
       Timer.time("PUT", COUNT, i -> {
         map.put(keys[i], values[i]);
@@ -40,7 +41,7 @@ public class BenchmarkNode {
         }
       });
 
-      map.clear();
+//      map.clear();
     }
   }
 }

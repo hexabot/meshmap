@@ -7,6 +7,8 @@ import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.util.UUID;
 
+import static java.lang.System.out;
+
 @EqualsAndHashCode
 public class Node implements Serializable {
   private UUID id = UUID.randomUUID();
@@ -37,25 +39,21 @@ public class Node implements Serializable {
 
     String[] parts = str.split("#");
 
-    if (parts.length != 3) {
-      throw new IllegalArgumentException("Node address must contain only a host and port");
-    }
+    if (parts.length != 3) { throw new IllegalArgumentException("Node address must contain only a host and port"); }
 
     String host = parts[0];
     int port;
     UUID id;
 
     try {
-      port = Integer.parseInt(parts[1]);
-    }
-    catch (NumberFormatException e) {
+      port = Integer.parseInt( parts[1] );
+    } catch (NumberFormatException e) {
       throw new IllegalArgumentException("Node address port must be a valid number", e);
     }
 
     try {
-      id = UUID.fromString(parts[2]);
-    }
-    catch (IllegalArgumentException e) {
+      id = UUID.fromString( parts[2] );
+    } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException("Node ID must be a valid UUID", e);
     }
 

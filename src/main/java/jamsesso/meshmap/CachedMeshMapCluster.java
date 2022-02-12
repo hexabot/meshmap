@@ -17,7 +17,6 @@ public class CachedMeshMapCluster implements MeshMapCluster {
       if(nodes == null) {
         nodes = delegate.getAllNodes();
       }
-
       return nodes;
     }
   }
@@ -27,9 +26,31 @@ public class CachedMeshMapCluster implements MeshMapCluster {
     return delegate.join();
   }
 
+  //nope, fix_fingers...
   public void clearCache() {
     synchronized (lock) {
       nodes = null;
+      //TODO: foreach n.stabilize
+    }
+  }
+
+  public void addNode(Node n){
+    synchronized (lock){
+      if(nodes == null){
+        nodes = delegate.getAllNodes();
+      }
+      if( !nodes.contains(n) && n != null )
+        nodes.add( n );
+    }
+  }
+
+  public void removeNode(Node n){
+    synchronized (lock){
+      if(nodes == null){
+        nodes = delegate.getAllNodes();
+      }
+      if(nodes.contains(n))
+        nodes.remove( n );
     }
   }
 }

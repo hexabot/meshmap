@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.lang.System.err;
+import static java.lang.System.out;
 
 public class MeshMapServer implements Runnable, AutoCloseable {
   private final MeshMapCluster cluster;
@@ -46,7 +47,7 @@ public class MeshMapServer implements Runnable, AutoCloseable {
     try {
       return Retryable.retry(() -> {
         try (Socket socket = new Socket()) {
-          socket.connect(node.getAddress());
+          socket.connect( node.getAddress() );
 
           try (OutputStream outputStream = socket.getOutputStream();
                InputStream inputStream = socket.getInputStream()) {
@@ -56,8 +57,8 @@ public class MeshMapServer implements Runnable, AutoCloseable {
           }
         }
       }).on(IOException.class).times(3);
-    }
-    catch (Exception e) {
+    } catch (Exception e) {
+//      out.println("unable to contact finger: " + node);
       throw new IOException(e);
     }
   }
@@ -68,12 +69,9 @@ public class MeshMapServer implements Runnable, AutoCloseable {
       .map(node -> {
         try {
           return new BroadcastResponse(node, message(node, message));
-        }
-        catch(IOException e) {
+        } catch(IOException e) {
           // TODO Better error handling strategy needed.
-          err.println("Unable to broadcast message to node: " + node);
-          e.printStackTrace();
-
+//          err.println("Unable to broadcast message to node: " + node);
           return new BroadcastResponse(node, Message.ERR);
         }
       })
@@ -83,21 +81,24 @@ public class MeshMapServer implements Runnable, AutoCloseable {
   @Override
   public void run() {
     try {
-      serverSocket = new ServerSocket(self.getAddress().getPort());
-    }
-    catch (IOException e) {
+      serverSocket = new ServerSocket( self.getAddress().getPort() );
+    } catch (IOException e) {
       failure = e;
-    }
-    finally {
+    } finally {
       started = true;
     }
 
+    //TODO: RSocket here
     while (!serverSocket.isClosed()) {
       try (Socket socket = serverSocket.accept();
            InputStream inputStream = socket.getInputStream();
            OutputStream outputStream = socket.getOutputStream()) {
+
         Message message = Message.read(inputStream);
         Message response = messageHandler.handle(message);
+
+        out.println("got message: " + message);
+        out.println("response: " + response );
 
         if(response == null) {
           response = Message.ACK;
@@ -108,8 +109,7 @@ public class MeshMapServer implements Runnable, AutoCloseable {
       }
       catch (SocketException e) {
         // Socket was closed. Nothing to do here. Node is going down.
-      }
-      catch (IOException e) {
+      } catch (IOException e) {
         // TODO Better error handling strategy is needed.
         err.println("Unable to accept connection");
         e.printStackTrace();
