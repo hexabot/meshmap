@@ -34,7 +34,7 @@ public class LocalMeshMapCluster implements MeshMapCluster, AutoCloseable {
                 .filter(File::isFile)
                 .map(File::getName)
                 .map(Node::from)
-                .sorted(Comparator.comparingInt(Node::getId))
+                .sorted(Comparator.comparingInt(node -> node.getId().hashCode()))
                 .collect(Collectors.toList());
     }
 

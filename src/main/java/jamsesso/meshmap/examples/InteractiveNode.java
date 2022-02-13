@@ -61,7 +61,7 @@ public class InteractiveNode {
           case 6:
 //            out.println( cluster.toString() );
             cluster.getAllNodes().forEach( node -> {
-              out.println( node.getId() + " @ " + node);
+              out.println( node.getId().hashCode() + " @ " + node);
             });
             break;
           case 7:

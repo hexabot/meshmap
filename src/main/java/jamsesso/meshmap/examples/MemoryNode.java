@@ -34,7 +34,7 @@ public class MemoryNode implements MeshMapCluster, AutoCloseable {
         return fingers
                 .stream()
                 .distinct()
-                .sorted(Comparator.comparingInt(Node::getId))
+                .sorted(Comparator.comparingInt( node -> node.getId().hashCode() ))
                 .collect(Collectors.toList());
     }
 

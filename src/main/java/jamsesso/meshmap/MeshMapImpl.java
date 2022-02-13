@@ -5,14 +5,13 @@ import lombok.Value;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.lang.System.err;
 import static java.lang.System.out;
 
 public class MeshMapImpl<K, V>
@@ -45,8 +44,6 @@ public class MeshMapImpl<K, V>
 
     private static Timer beat;
 
-    private Queue<Integer> non_response;
-
     public MeshMapImpl(MeshMapCluster cluster, MeshMapServer server, Node self) {
         this.cluster = new CachedMeshMapCluster(cluster);
         this.server = server;
@@ -55,7 +52,6 @@ public class MeshMapImpl<K, V>
 
         this.create();
         this.beat = new Timer();
-        non_response = new LinkedList<>();
     }
 
     @Override
@@ -63,14 +59,11 @@ public class MeshMapImpl<K, V>
         switch ( message.getType() ) {
             case Message.TYPE_HI:
                 cluster.addNode( message.getPayload(Node.class) );
-//                join( message.getPayload(Node.class) );
                 return Message.ACK;
-//                return new Message(TYPE_JOIN, self);
-//                cluster.getAllNodes().forEach(node -> out.println(node.getId() + " @ " + node));
-//                return Message.ACK;
 
 //            case Message.TYPE_BYE: {
-//                cluster.clearCache();
+////                cluster.clearCache();
+//                cluster.removeNode( message.getPayload(Node.class) );
 //                return Message.ACK;
 //            }
 
@@ -180,7 +173,7 @@ public class MeshMapImpl<K, V>
 //                        return key.hashCode() <= self.getId() && key.hashCode() > successor.getId();
 //                    }
 
-                    return key.hashCode() > self.getId() && key.hashCode() < successor.getId();
+                    return key.hashCode() > self.getId().hashCode() && key.hashCode() < successor.getId().hashCode();
                 })
                 .collect(Collectors.toList());
 
@@ -221,7 +214,7 @@ public class MeshMapImpl<K, V>
     public void open() throws MeshMapException {
         cluster.getAllNodes()
                 .stream()
-                .filter( node -> node.getId() != self.getId() )
+                .filter( node -> node != self )
                 .forEach( node -> join( node ) );
 
         //run house keeping
@@ -270,39 +263,50 @@ public class MeshMapImpl<K, V>
                 n0 := closest_preceding_node(id)
                 return n0.find_successor(id)
     */
-    private Node find_successor(Object key) {
+    private Node find_successor(Object id) {
+        Key key = new Key(
+                UUID.nameUUIDFromBytes( String.valueOf( id.hashCode() & Integer.MAX_VALUE ).getBytes(StandardCharsets.UTF_8) )
+        );
+
         if(successor.equals(self))
             return self;
-        //go around the circle; on put hash similarly
-        int hash = key.hashCode() & Integer.MAX_VALUE;
 
-        List<Node> fingers = cluster.getAllNodes();
+        if( key.isBetweenRightIncluded(self.getId(), successor.getId() ) ){
+            return successor;
+        }else{
+            try {
+                Node nPrime = closest_preceding_node( key.getId() );
+                return server.message(
+                        nPrime,
+                        new Message(TYPE_SUCCESSOR, key.getId() )
+                ).getPayload(Node.class);
+            }catch(IOException e){}
 
-//        return fingers
-//                .parallelStream()
-//                .filter( node -> node.getId() > )
+        }
 
-        return
-            cluster.getAllNodes()
-                    .stream()
-                    .filter( node ->
-                            node.getId() > self.getId() && node.getId() <= successor.getId()
-                    )
-                    .filter( node ->
-                            node.getId() >= hash || node.getId() <= hash
-                    )
-                    .findAny()
-                    .orElseGet( () -> {
-                        try {
-                            return server.message(
-                                    closest_preceding_node( hash ),
-                                    new Message( TYPE_SUCCESSOR, hash )
-                            ).getPayload(Node.class);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                        return self;
-                    });
+        return null;
+
+//        return
+//            cluster.getAllNodes()
+//                    .stream()
+//                    .filter( node ->
+//                            node.getId() > self.getId() && node.getId() <= successor.getId()
+//                    )
+//                    .filter( node ->
+//                            node.getId() >= hash || node.getId() <= hash
+//                    )
+//                    .findAny()
+//                    .orElseGet( () -> {
+//                        try {
+//                            return server.message(
+//                                    closest_preceding_node( hash ),
+//                                    new Message( TYPE_SUCCESSOR, hash )
+//                            ).getPayload(Node.class);
+//                        } catch (IOException e) {
+//                            e.printStackTrace();
+//                        }
+//                        return self;
+//                    });
     }
 
     /*
@@ -313,14 +317,14 @@ public class MeshMapImpl<K, V>
                     return finger[i]
             return n
     */
-    private Node closest_preceding_node(Object key){
+    private Node closest_preceding_node(UUID key){
         return cluster
                 .getAllNodes()
                 .stream()
                 .filter( node ->
-                        node.getId() > self.getId() && node.getId() < key.hashCode()
+                        node.isBetween( self.getId(), key )
                 )
-                .max(Comparator.comparingInt(Node::getId))
+                .max(Comparator.comparingInt( node -> node.hashCode() ))
                 .orElse( self );
     }
 
@@ -345,7 +349,7 @@ public class MeshMapImpl<K, V>
         predecessor = null;
 
         try{
-            successor = server.message( remote, new Message( TYPE_SUCCESSOR, self.getId() ) ).getPayload(Node.class);
+            successor = server.message( remote, new Message( TYPE_SUCCESSOR, self ) ).getPayload(Node.class);
         }catch(IOException e){}
 
 //        request_fingers( remote );
@@ -367,7 +371,8 @@ public class MeshMapImpl<K, V>
             return;
         try {
             Node x = server.message( successor, new Message(TYPE_PREDECESSOR) ).getPayload(Node.class);
-            if( x.getId() > self.getId() && x.getId() < successor.getId() )
+//            if( x.getId() > self.getId() && x.getId() < successor.getId() )
+            if( x.isBetween(self.getId(), successor.getId()))
                 successor = x;
             server.message(successor, new Message(TYPE_NOTIFY, self ) );
         }catch(IOException e){
@@ -382,7 +387,8 @@ public class MeshMapImpl<K, V>
                 predecessor := n'
      */
     private void notify(Node nPrime){
-        if( predecessor == null || nPrime.getId() > predecessor.getId() && nPrime.getId() < self.getId() ){
+        if( predecessor == null || nPrime.isBetween(predecessor.getId(), self.getId()) ){
+//        if( predecessor == null || nPrime.getId() > predecessor.getId() && nPrime.getId() < self.getId() ){
             predecessor = nPrime;
         }
     }
@@ -403,8 +409,8 @@ public class MeshMapImpl<K, V>
         int m = Integer.bitCount( Integer.MAX_VALUE );
         next = ( next > m ) ? 1 : next + 1;
         Double idx = next + Math.pow(2, next - 1);
-
-        join( find_successor( idx.intValue() ) );
+        UUID key = UUID.fromString( String.valueOf( next + Math.pow(2, next - 1) ) );
+        join( find_successor( key ) );
     }
 
     /*
@@ -424,7 +430,6 @@ public class MeshMapImpl<K, V>
                     if( node.getId() == predecessor.getId() ){
                         predecessor = null;
                     }
-                    non_response.add( node.getId() );
                     cluster.removeNode( node );
                     return null;
                 });
@@ -446,7 +451,7 @@ public class MeshMapImpl<K, V>
 
     @Override
     public boolean containsKey(Object key) {
-        Node target = find_successor( key.hashCode() );
+        Node target = find_successor( key );
         if( target.equals(self) )
             return delegate.containsKey(key);
 
@@ -475,18 +480,18 @@ public class MeshMapImpl<K, V>
 
     @Override
     public V get(Object key) {
-        return (V) get(key, find_successor(key));
+        return (V) get(key, find_successor( key ));
     }
 
     @Override
     public V put(K key, V value) {
-        put(key, value, find_successor(key));
+        put(key, value, find_successor( key ));
         return value;
     }
 
     @Override
     public V remove(Object key) {
-        return (V) remove(key, find_successor(key));
+        return (V) remove(key, find_successor( key ));
     }
 
     @Override
@@ -613,16 +618,6 @@ public class MeshMapImpl<K, V>
         }
 
         return response.getPayload(Object.class);
-    }
-
-    private Object[] nodeList(Node target){
-        try{
-            return server.message(target, new Message(TYPE_FINGERS))
-                    .getPayload(Object[].class);
-        }catch(IOException e){
-
-        }
-        return null;
     }
 
     private Object[] keySet(Node target) {

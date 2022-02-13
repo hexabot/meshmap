@@ -97,8 +97,8 @@ public class MeshMapServer implements Runnable, AutoCloseable {
         Message message = Message.read(inputStream);
         Message response = messageHandler.handle(message);
 
-        out.println("got message: " + message);
-        out.println("response: " + response );
+//        out.println("got message: " + message);
+//        out.println("response: " + response );
 
         if(response == null) {
           response = Message.ACK;

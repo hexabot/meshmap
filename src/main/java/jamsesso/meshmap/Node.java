@@ -2,16 +2,11 @@ package jamsesso.meshmap;
 
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-
-import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.util.UUID;
 
-import static java.lang.System.out;
-
-@EqualsAndHashCode
-public class Node implements Serializable {
-  private UUID id = UUID.randomUUID();
+@EqualsAndHashCode(callSuper=false)
+public class Node extends Key {
   private @Getter InetSocketAddress address;
 
   public Node(InetSocketAddress address) {
@@ -19,17 +14,13 @@ public class Node implements Serializable {
   }
 
   public Node(UUID id, InetSocketAddress address) {
-    this.id = id;
+    super(id);
     this.address = address;
-  }
-
-  public int getId() {
-    return id.hashCode() & Integer.MAX_VALUE;
   }
 
   @Override
   public String toString() {
-    return address.getHostString() + '#' + address.getPort() + '#' + id;
+    return address.getHostString() + '#' + address.getPort() + '#' + this.getId();
   }
 
   public static Node from(String str) {

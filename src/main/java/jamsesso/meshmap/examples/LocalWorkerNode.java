@@ -26,6 +26,7 @@ public class LocalWorkerNode {
     try (MemoryNode cluster = new MemoryNode( self );
          MeshMap<String, String> map = cluster.join()) {
       in.read();
+//      cluster.close();
       out.println("Node is going down...");
     }
   }
