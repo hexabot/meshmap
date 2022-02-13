@@ -26,11 +26,9 @@ public class CachedMeshMapCluster implements MeshMapCluster {
     return delegate.join();
   }
 
-  //nope, fix_fingers...
   public void clearCache() {
     synchronized (lock) {
       nodes = null;
-      //TODO: foreach n.stabilize
     }
   }
 

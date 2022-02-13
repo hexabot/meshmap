@@ -1,12 +1,9 @@
 package jamsesso.meshmap;
 
-
 import lombok.Value;
-
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -188,29 +185,6 @@ public class MeshMapImpl<K, V>
         );
     }
 
-    public void request_fingers( Node remote ){
-        try{
-            Object[] fingers = server.message( remote, new Message(TYPE_FINGERS) ).getPayload(Object[].class);
-            Arrays.stream(fingers).collect(Collectors.toList()).forEach(out::println);
-            Arrays.stream(fingers).collect(Collectors.toList()).forEach( node -> join((Node)node) );
-        }catch(Exception e){
-
-        }
-//        try{
-//            for (Map.Entry<Node, Message> response : server.broadcast(new Message(TYPE_FINGERS)).entrySet()) {
-//                Object[] remoteEntries = response.getValue().getPayload(Object[].class);
-//                Arrays.stream(remoteEntries)
-//                        .filter( obj -> obj instanceof Node )
-//                        .forEach(out::println);
-////                        .forEach( node -> join( (Node)node ));
-//            }
-//        }catch (Exception e){
-//            e.printStackTrace();
-//        }
-
-//        cluster.getAllNodes().forEach( node -> out.println( node ));
-    }
-
     public void open() throws MeshMapException {
         cluster.getAllNodes()
                 .stream()
@@ -222,14 +196,11 @@ public class MeshMapImpl<K, V>
             @Override
             public void run() {
                 try {
-//                    request_fingers();
                     check_predecessor();
                     stabilize();
                     balance_data();
                     fix_fingers();
-                }catch(Exception e ){
-//                    err.println("error occurred: " + e.getMessage() );
-                }
+                }catch(Exception e ){}
             }
         },0, 600);
     }
@@ -249,8 +220,6 @@ public class MeshMapImpl<K, V>
         beat.cancel();
     }
 
-    //http://cit.cs.dixie.edu/cs/3410/asst_chord.html
-
     /*
         // ask node n to find the successor of id
         n.find_successor(id)
@@ -263,50 +232,28 @@ public class MeshMapImpl<K, V>
                 n0 := closest_preceding_node(id)
                 return n0.find_successor(id)
     */
-    private Node find_successor(Object id) {
-        Key key = new Key(
-                UUID.nameUUIDFromBytes( String.valueOf( id.hashCode() & Integer.MAX_VALUE ).getBytes(StandardCharsets.UTF_8) )
-        );
-
+    private Node find_successor(Object key) {
+        //required
         if(successor.equals(self))
             return self;
 
-        if( key.isBetweenRightIncluded(self.getId(), successor.getId() ) ){
+        //TODO: we are doing circular lookup here. lookup for node before put @ node
+        Key id = new Key( String.valueOf( key.hashCode() & Integer.MAX_VALUE ) );
+
+        if( id.isBetweenRightIncluded( self.getId(), successor.getId() ) ){
             return successor;
         }else{
             try {
-                Node nPrime = closest_preceding_node( key.getId() );
+                Node nPrime = closest_preceding_node( id );
                 return server.message(
                         nPrime,
-                        new Message(TYPE_SUCCESSOR, key.getId() )
+                        new Message(TYPE_SUCCESSOR, id )
                 ).getPayload(Node.class);
             }catch(IOException e){}
 
         }
 
         return null;
-
-//        return
-//            cluster.getAllNodes()
-//                    .stream()
-//                    .filter( node ->
-//                            node.getId() > self.getId() && node.getId() <= successor.getId()
-//                    )
-//                    .filter( node ->
-//                            node.getId() >= hash || node.getId() <= hash
-//                    )
-//                    .findAny()
-//                    .orElseGet( () -> {
-//                        try {
-//                            return server.message(
-//                                    closest_preceding_node( hash ),
-//                                    new Message( TYPE_SUCCESSOR, hash )
-//                            ).getPayload(Node.class);
-//                        } catch (IOException e) {
-//                            e.printStackTrace();
-//                        }
-//                        return self;
-//                    });
     }
 
     /*
@@ -317,12 +264,12 @@ public class MeshMapImpl<K, V>
                     return finger[i]
             return n
     */
-    private Node closest_preceding_node(UUID key){
+    private Node closest_preceding_node(Key key){
         return cluster
                 .getAllNodes()
                 .stream()
                 .filter( node ->
-                        node.isBetween( self.getId(), key )
+                        node.isBetween( self.getId(), key.getId() )
                 )
                 .max(Comparator.comparingInt( node -> node.hashCode() ))
                 .orElse( self );
@@ -351,8 +298,6 @@ public class MeshMapImpl<K, V>
         try{
             successor = server.message( remote, new Message( TYPE_SUCCESSOR, self ) ).getPayload(Node.class);
         }catch(IOException e){}
-
-//        request_fingers( remote );
     }
 
     /*
@@ -366,13 +311,12 @@ public class MeshMapImpl<K, V>
             successor.notify(n)
     */
     private void stabilize(){
-        //id & MAX_VAL??
         if(successor.equals(self))
             return;
+
         try {
             Node x = server.message( successor, new Message(TYPE_PREDECESSOR) ).getPayload(Node.class);
-//            if( x.getId() > self.getId() && x.getId() < successor.getId() )
-            if( x.isBetween(self.getId(), successor.getId()))
+            if( x.isBetween( self.getId(), successor.getId() ) )
                 successor = x;
             server.message(successor, new Message(TYPE_NOTIFY, self ) );
         }catch(IOException e){
@@ -387,8 +331,7 @@ public class MeshMapImpl<K, V>
                 predecessor := n'
      */
     private void notify(Node nPrime){
-        if( predecessor == null || nPrime.isBetween(predecessor.getId(), self.getId()) ){
-//        if( predecessor == null || nPrime.getId() > predecessor.getId() && nPrime.getId() < self.getId() ){
+        if( predecessor == null || nPrime.isBetween( predecessor.getId(), self.getId() ) ){
             predecessor = nPrime;
         }
     }
@@ -404,13 +347,16 @@ public class MeshMapImpl<K, V>
             finger[next] := find_successor(n+2^{next-1});
     */
     private int next = 1;
+    int m = Integer.bitCount( Integer.MAX_VALUE );
     private void fix_fingers() {
         //distance calculation
-        int m = Integer.bitCount( Integer.MAX_VALUE );
         next = ( next > m ) ? 1 : next + 1;
-        Double idx = next + Math.pow(2, next - 1);
-        UUID key = UUID.fromString( String.valueOf( next + Math.pow(2, next - 1) ) );
-        join( find_successor( key ) );
+
+        Double idx = self.getId().hashCode() + Math.pow(2, next - 1);
+
+        Key key = new Key( idx.toString() );
+
+        cluster.addNode( find_successor( key ) );
     }
 
     /*
@@ -427,7 +373,7 @@ public class MeshMapImpl<K, V>
                 .filter( entry -> values().equals(Message.ERR) )
                 .map( Map.Entry::getKey )
                 .map( node -> {
-                    if( node.getId() == predecessor.getId() ){
+                    if( node.equals(predecessor) ){
                         predecessor = null;
                     }
                     cluster.removeNode( node );

@@ -13,8 +13,8 @@ public class MemoryNode implements MeshMapCluster, AutoCloseable {
     private List<Node> fingers;
 
     public static final String[] bootstrapNodes = {
-            "127.0.0.1#8898#557f12a4-1a6e-4b20-82ca-07ddbc59c6a0", //id 1904384249
-//            "127.0.0.1#8898#1b26cbaf-f600-40a2-a37f-7090d50c2405" //id 458612632
+//            "127.0.0.1#8898#557f12a4-1a6e-4b20-82ca-07ddbc59c6a0", //id 1904384249
+            "127.0.0.1#8898#1b26cbaf-f600-40a2-a37f-7090d50c2405" //id 458612632
     };
 
     public MemoryNode( Node self ){

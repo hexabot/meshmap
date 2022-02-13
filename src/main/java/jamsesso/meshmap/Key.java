@@ -3,6 +3,7 @@ package jamsesso.meshmap;
 import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 @EqualsAndHashCode
@@ -11,6 +12,12 @@ public class Key implements Serializable {
 
     public Key(UUID id){
         this.hashing = id;
+    }
+
+    public Key(String id){
+        this.hashing = UUID.nameUUIDFromBytes(
+            id.getBytes( StandardCharsets.UTF_8 )
+        );
     }
 
     public UUID getId(){
